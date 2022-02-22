@@ -1,0 +1,126 @@
+- hosts: database
+  become: yes
+  remote_user: admin
+  vars:
+    postgresql_ca_subj_base: "/C=US/O=Example"
+    postgresql_ca_hostname_fqdn: "{{ inventory_hostname }}"
+    local_db_prefix: "{{ inventory_hostname[-2:] }}"
+    pip_install_packages:
+      - name: psycopg2-binary
+    postgresql_conf:
+      - listen_addresses: "'*'"
+      - max_connections: 250
+      - wal_level: "'logical'"
+      - ssl: "'on'"
+      - ssl_cert_file: "'/etc/ssl/postgresql/server.crt'"
+      - ssl_key_file: "'/etc/ssl/postgresql/server.key'"
+      - ssl_ca_file: "'/etc/ssl/postgresql/root.crt'"
+    postgresql_pg_hba_conf:
+      - host all all 0.0.0.0/0 md5
+      - host all all ::/0 md5
+    postgresql_backup_dir: /opt/postgres/backup
+    postgresql_major_version: 13
+
+  roles:
+    - postgresql-ca
+    - darkwizard242.python3
+    - geerlingguy.pip
+    - galaxyproject.postgresql
+
+  tasks:
+  - name: install packages
+    become: yes
+    package:
+      name:
+        - git
+        - postgis
+        - postgresql-{{ postgresql_major_version }}-cron
+        - postgresql-{{ postgresql_major_version }}-partman
+        - screen
+        - sqitch
+        - tmux
+        - vim
+        - wget
+      state: present
+
+  - name: ssh keygen command
+    become: yes
+    become_user: postgres
+    shell: >
+      ssh-keygen -q -b 2048 -t rsa -N "" -C "creating SSH" -f ~/.ssh/id_rsa
+      creates="~/.ssh/id_rsa"
+
+  - name: fetch the keyfile from the node to master
+    become: yes
+    become_user: postgres
+    fetch:
+      src: "~/.ssh/id_rsa.pub"
+      dest: "buffer/{{ ansible_hostname }}-id_rsa.pub"
+      flat: yes
+
+  - name: copy the key add to authorized_keys using ansible module
+    authorized_key:
+      user: postgres
+      state: present
+      key: "{{ lookup('file','buffer/{{ item }}-id_rsa.pub')}}"
+    with_items:
+      - "{{ groups['database'] }}"
+
+  - name: collect postgresql version and extensions
+    become: yes
+    become_user: postgres
+    community.postgresql.postgresql_info:
+      filter: ver*,ext*
+
+  - name: set postgres database (superuser) password
+    become: yes
+    become_user: postgres
+    community.postgresql.postgresql_user:
+      name: postgres
+      password: "{{ postgres_password }}"
+
+  - name: verify .pgpass exists, contains credentials
+    become: yes
+    become_user: postgres
+    lineinfile:
+      path: ~/.pgpass
+      mode: "0600"
+      line: "*:*:*:postgres:{{ postgres_password }}"
+      create: yes
+
+  - name: create database suffix _p for publication
+    become: yes
+    become_user: postgres
+    community.postgresql.postgresql_db:
+      name: "{{ local_db_prefix }}_p"
+
+  - name: create publication suffix _pub for all tables in db _p
+    become: yes
+    become_user: postgres
+    community.postgresql.postgresql_publication:
+      db: "{{ local_db_prefix }}_p"
+      name: "{{ local_db_prefix }}_pub"
+
+  - name: create databases suffix _s for each other member in group 
+    become: yes
+    become_user: postgres
+    community.postgresql.postgresql_db:
+      name: "{{ item[-2:] }}_s"
+    when: "{{ item != ansible_hostname }}"
+    with_items:
+      - "{{ groups['database'] }}"
+
+  - name: create subscriptions suffix _sub for each other member db _p 
+    become: yes
+    become_user: postgres
+    community.postgresql.postgresql_subscription:
+      db: "{{ item[-2:] }}_s"
+      name: "{{ item[-2:] }}_sub"
+      state: present
+      publications: "{{ item[-2:] }}_pub"
+      connparams:
+        host: "{{ item }}"
+        dbname: "{{ item[-2:] }}_p"
+    when: "{{ item != ansible_hostname }}"
+    with_items:
+      - "{{ groups['database'] }}"

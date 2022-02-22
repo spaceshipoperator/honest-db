@@ -1,5 +1,11 @@
 # honest-db
-<<<<<<< HEAD
+
 a database implementation featuring postgresql and many community contributions
-=======
->>>>>>> 904d8a8 (first commit)
+
+```
+ansible-galaxy collection install community.postgresql
+ansible-galaxy install darkwizard242.python3
+ansible-galaxy install geerlingguy.pip
+
+mkdir -p ./roles && git clone https://github.com/cogini/ansible-role-postgresql-ca.git ./roles/postgresql-ca
+```

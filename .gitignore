@@ -1,0 +1,3 @@
+./buffer
+./group_vars/database/vault
+./roles/postgresql-ca
