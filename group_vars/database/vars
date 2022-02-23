@@ -1,2 +1,3 @@
 ---
+migrate_schema_dir: /opt/honest-db/migrate-schema
 postgres_password: "{{ vault_postgres_password }}"

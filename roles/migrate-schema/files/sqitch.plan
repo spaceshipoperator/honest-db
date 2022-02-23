@@ -1,0 +1,5 @@
+%syntax-version=1.0.0
+%project=migrate-schema
+%uri=https://github.com/spaceshipoperator/honest-db
+
+app_schema 2022-02-23T02:00:42Z Brian Muckian <bmuckian@gmail.com> # add schema for all application objects.

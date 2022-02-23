@@ -26,6 +26,7 @@
     - darkwizard242.python3
     - geerlingguy.pip
     - galaxyproject.postgresql
+    - migrate-schema
 
   tasks:
   - name: install packages
@@ -37,7 +38,6 @@
         - postgresql-{{ postgresql_major_version }}-cron
         - postgresql-{{ postgresql_major_version }}-partman
         - screen
-        - sqitch
         - tmux
         - vim
         - wget

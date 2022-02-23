@@ -1,0 +1,28 @@
+---
+- name: install packages
+  become: yes
+  package:
+    name:
+      - sqitch
+    state: present
+
+- name: create a directory if it does not exist
+  become: yes
+  ansible.builtin.file:
+    path: "{{ migrate_schema_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: copy all schema migration files
+  become: yes
+  copy: 
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: postgres
+    group: postgres
+  with_items:
+    - { src: 'deploy', dest: "{{ migrate_schema_dir }}"  }
+    - { src: 'revert', dest: "{{ migrate_schema_dir }}" }
+    - { src: 'verify', dest: "{{ migrate_schema_dir }}" }
+    - { src: 'sqitch.plan', dest: "{{ migrate_schema_dir }}" }
+    - { src: 'sqitch.conf', dest: "{{ migrate_schema_dir }}" }
