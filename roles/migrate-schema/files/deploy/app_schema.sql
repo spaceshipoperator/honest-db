@@ -1,4 +1,4 @@
 -- deploy migrate-schema:app_schema to pg
 begin;
-    create schema app;
+    create schema if not exists app;
 commit;
