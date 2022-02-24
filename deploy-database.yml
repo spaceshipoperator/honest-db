@@ -127,6 +127,16 @@
     with_items:
       - "{{ groups['database'] }}"
 
+  - name: refresh all subscriptions (to include any tables added since last deploy)
+    become: yes
+    become_user: postgres
+    postgresql_query:
+      db: "{{ item[-2:] }}_s"
+      query: "alter subscription {{ item[-2:] }}_sub refresh publication;"
+    when: "{{ item != ansible_hostname }}"
+    with_items:
+      - "{{ groups['database'] }}"
+
   - name: get list of all publisher/subscriber (_p,_s) dbs
     become: yes
     become_user: postgres

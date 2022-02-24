@@ -27,6 +27,16 @@
     - { src: 'sqitch.plan', dest: "{{ migrate_schema_dir }}" }
     - { src: 'sqitch.conf', dest: "{{ migrate_schema_dir }}" }
 
+- name: revert all schema migrations for each subscriber db (_s)
+  become: yes
+  become_user: postgres
+  command:
+    chdir: "{{ migrate_schema_dir }}"
+    cmd: "sqitch revert -y db:pg:{{ item[-2:] }}_s"
+  when: "{{ item != ansible_hostname }}"
+  with_items:
+    - "{{ groups['database'] }}"
+
 - name: deploy schema migrations for each subscriber db (_s)
   become: yes
   become_user: postgres
@@ -36,6 +46,13 @@
   when: "{{ item != ansible_hostname }}"
   with_items:
     - "{{ groups['database'] }}"
+
+- name: revert all schema migrations for local publisher db (_p)
+  become: yes
+  become_user: postgres
+  command:
+    chdir: "{{ migrate_schema_dir }}"
+    cmd: "sqitch revert -y db:pg:{{ local_db_prefix }}_p"
 
 - name: deploy schema migrations for local publisher db (_p)
   become: yes
