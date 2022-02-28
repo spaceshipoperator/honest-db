@@ -5,6 +5,7 @@
     name:
       - sqitch
     state: present
+  tags: packages
 
 - name: create a directory if it does not exist
   become: yes
@@ -12,6 +13,7 @@
     path: "{{ migrate_schema_dir }}"
     state: directory
     mode: '0755'
+  tags: deploy
 
 - name: copy all schema migration files
   become: yes
@@ -26,6 +28,10 @@
     - { src: 'verify', dest: "{{ migrate_schema_dir }}" }
     - { src: 'sqitch.plan', dest: "{{ migrate_schema_dir }}" }
     - { src: 'sqitch.conf', dest: "{{ migrate_schema_dir }}" }
+  tags:
+    - deploy
+    - revert_schema
+    - upgrade_schema
 
 - name: revert all schema migrations for each subscriber db (_s)
   become: yes
@@ -36,6 +42,7 @@
   when: "{{ item != ansible_hostname }}"
   with_items:
     - "{{ groups['database'] }}"
+  tags: revert_schema
 
 - name: deploy schema migrations for each subscriber db (_s)
   become: yes
@@ -46,6 +53,18 @@
   when: "{{ item != ansible_hostname }}"
   with_items:
     - "{{ groups['database'] }}"
+  tags: deploy
+
+- name: upgrade schema migrations for each subscriber db (_s)
+  become: yes
+  become_user: postgres
+  command:
+    chdir: "{{ migrate_schema_dir }}"
+    cmd: "sqitch upgrade db:pg:{{ item[-2:] }}_s"
+  when: "{{ item != ansible_hostname }}"
+  with_items:
+    - "{{ groups['database'] }}"
+  tags: upgrade_schema
 
 - name: revert all schema migrations for local publisher db (_p)
   become: yes
@@ -53,6 +72,7 @@
   command:
     chdir: "{{ migrate_schema_dir }}"
     cmd: "sqitch revert -y db:pg:{{ local_db_prefix }}_p"
+  tags: revert_schema
 
 - name: deploy schema migrations for local publisher db (_p)
   become: yes
@@ -60,3 +80,12 @@
   command:
     chdir: "{{ migrate_schema_dir }}"
     cmd: "sqitch deploy --verify db:pg:{{ local_db_prefix }}_p"
+  tags: deploy
+
+- name: upgrade schema migrations for local publisher db (_p)
+  become: yes
+  become_user: postgres
+  command:
+    chdir: "{{ migrate_schema_dir }}"
+    cmd: "sqitch upgrade db:pg:{{ local_db_prefix }}_p"
+  tags: upgrade_schema

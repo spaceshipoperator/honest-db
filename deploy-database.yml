@@ -44,6 +44,7 @@
         - vim
         - wget
       state: present
+    tags: packages
 
   - name: ssh keygen command
     become: yes
@@ -59,6 +60,7 @@
       src: "~/.ssh/id_rsa.pub"
       dest: "buffer/{{ ansible_hostname }}-id_rsa.pub"
       flat: yes
+    tags: deploy
 
   - name: copy the key add to authorized_keys using ansible module
     authorized_key:
@@ -67,6 +69,7 @@
       key: "{{ lookup('file','buffer/{{ item }}-id_rsa.pub')}}"
     with_items:
       - "{{ groups['database'] }}"
+    tags: deploy
 
   - name: collect postgresql version and extensions
     become: yes
@@ -80,6 +83,7 @@
     community.postgresql.postgresql_user:
       name: postgres
       password: "{{ postgres_password }}"
+    tags: deploy
 
   - name: verify .pgpass exists, contains credentials
     become: yes
@@ -89,12 +93,14 @@
       mode: "0600"
       line: "*:*:*:postgres:{{ postgres_password }}"
       create: yes
+    tags: deploy
 
   - name: create database suffix _p for publication
     become: yes
     become_user: postgres
     community.postgresql.postgresql_db:
       name: "{{ local_db_prefix }}_p"
+    tags: deploy
 
   - name: create publication suffix _pub for all tables in db _p
     become: yes
@@ -102,6 +108,7 @@
     community.postgresql.postgresql_publication:
       db: "{{ local_db_prefix }}_p"
       name: "{{ local_db_prefix }}_pub"
+    tags: deploy
 
   - name: create databases suffix _s for each other member in group 
     become: yes
@@ -111,6 +118,7 @@
     when: "{{ item != ansible_hostname }}"
     with_items:
       - "{{ groups['database'] }}"
+    tags: deploy
 
   - name: create subscriptions suffix _sub for each other member db _p 
     become: yes
@@ -126,6 +134,7 @@
     when: "{{ item != ansible_hostname }}"
     with_items:
       - "{{ groups['database'] }}"
+    tags: deploy
 
   - name: refresh all subscriptions (to include any tables added since last deploy)
     become: yes
@@ -136,6 +145,7 @@
     when: "{{ item != ansible_hostname }}"
     with_items:
       - "{{ groups['database'] }}"
+    tags: deploy
 
   - name: get list of all publisher/subscriber (_p,_s) dbs
     become: yes
@@ -143,6 +153,7 @@
     postgresql_query:
       query: select string_agg(datname, ',') c from pg_database where datname ~ '^.*_[ps]$';
     register: list_p_s_dbs
+    tags: deploy
 
   - name: set postgresql conf pg_partman_bgw.dbname to list of publisher/subscriber dbs
     become: yes
@@ -150,3 +161,4 @@
     community.postgresql.postgresql_set:
       name: pg_partman_bgw.dbname
       value: "{{ list_p_s_dbs.query_result[0]['c'] }}"
+    tags: deploy
