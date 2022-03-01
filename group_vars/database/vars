@@ -1,3 +1,29 @@
 ---
-migrate_schema_dir: /opt/honest-db/migrate-schema
+pg_major_version: 13
+
+db_extensions:
+  - adminpack
+  - pg_partman
+  - pg_stat_statements
+  - pgaudit
+  - pgrouting
+  - postgis
+
+extra_packages:
+  - htop
+  - git
+  - postgis
+  - postgresql-contrib-{{ pg_major_version }}
+  - postgresql-{{ pg_major_version }}-cron
+  - postgresql-{{ pg_major_version }}-partman
+  - postgresql-{{ pg_major_version }}-pgaudit
+  - postgresql-{{ pg_major_version }}-pgrouting
+  - postgresql-{{ pg_major_version }}-postgis-3
+  - screen
+  - tmux
+  - vim
+  - wget
+
+migrate_schema_dir: "/opt/honest-db/migrate-schema"
+
 postgres_password: "{{ vault_postgres_password }}"

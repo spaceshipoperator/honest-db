@@ -1,0 +1,163 @@
+---
+- name: install packages
+  become: yes
+  package:
+    name: "{{ extra_packages }}"
+    state: present
+  tags: packages
+
+- name: ssh keygen command
+  become: yes
+  become_user: postgres
+  shell: >
+    ssh-keygen -q -b 2048 -t rsa -N "" -C "creating SSH" -f ~/.ssh/id_rsa
+    creates="~/.ssh/id_rsa"
+
+- name: fetch the keyfile from the node to master
+  become: yes
+  become_user: postgres
+  fetch:
+    src: "~/.ssh/id_rsa.pub"
+    dest: "buffer/{{ ansible_hostname }}-id_rsa.pub"
+    flat: yes
+  tags: deploy
+
+- name: copy the key add to authorized_keys using ansible module
+  authorized_key:
+    user: postgres
+    state: present
+    key: "{{ lookup('file','buffer/{{ item }}-id_rsa.pub')}}"
+  with_items:
+    - "{{ groups['database'] }}"
+  tags: deploy
+
+- name: collect postgresql version and extensions
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_info:
+    filter: ver*,ext*
+
+- name: set postgres database (superuser) password
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: postgres
+    password: "{{ postgres_password }}"
+  tags: deploy
+
+- name: verify .pgpass exists, contains credentials
+  become: yes
+  become_user: postgres
+  lineinfile:
+    path: ~/.pgpass
+    mode: "0600"
+    line: "*:*:*:postgres:{{ postgres_password }}"
+    create: yes
+  tags: deploy
+
+- name: create database suffix _p for publication
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ local_db_prefix }}_p"
+  tags: deploy
+
+- name: create publication suffix _pub for all tables in db _p
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_publication:
+    db: "{{ local_db_prefix }}_p"
+    name: "{{ local_db_prefix }}_pub"
+  tags: deploy
+
+- name: create databases suffix _s for each other member in group 
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ item[-2:] }}_s"
+  when: "{{ item != ansible_hostname }}"
+  loop: "{{ groups['database'] }}"
+  tags: deploy
+
+- name: create subscriptions suffix _sub for each other member db _p 
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_subscription:
+    db: "{{ item[-2:] }}_s"
+    name: "{{ item[-2:] }}_sub"
+    state: present
+    publications: "{{ item[-2:] }}_pub"
+    connparams:
+      host: "{{ item }}"
+      dbname: "{{ item[-2:] }}_p"
+  when: "{{ item != ansible_hostname }}"
+  loop: "{{ groups['database'] }}"
+  tags: deploy
+
+- name: create schemas for each extension in all subscriber (_s) databases
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_schema:
+    db: "{{ item[0][-2:] }}_s"
+    name: "ext_{{ item[1] }}"
+  when: "{{ item[0] != ansible_hostname }}"
+  loop: "{{ groups['database'] | product(db_extensions) | list }}"
+  tags: deploy
+
+- name: create schemas for each extension in all publisher (_p) databases
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_schema:
+    db: "{{ local_db_prefix }}_p"
+    name: "ext_{{ item }}"
+  loop: "{{ db_extensions }}"
+  tags: deploy
+ 
+- name: create extensions in all subscriber (_s) databases
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_ext:
+    db: "{{ item[0][-2:] }}_s"
+    name: "{{ item[1] }}"
+    schema: "ext_{{ item[1] }}"
+    cascade: yes
+  when: "{{ item[0] != ansible_hostname }}"
+  loop: "{{ groups['database'] | product(db_extensions) | list }}"
+  tags: deploy
+
+- name: create extensions in all publisher (_p) databases
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_ext:
+    db: "{{ local_db_prefix }}_p"
+    name: "{{ item }}"
+    schema: "ext_{{ item }}"
+    cascade: yes
+  loop: "{{ db_extensions }}"
+  tags: deploy
+
+- name: refresh all subscriptions (to include any tables added since last deploy)
+  become: yes
+  become_user: postgres
+  postgresql_query:
+    db: "{{ item[-2:] }}_s"
+    query: "alter subscription {{ item[-2:] }}_sub refresh publication;"
+  when: "{{ item != ansible_hostname }}"
+  loop: "{{ groups['database'] }}"
+  tags: deploy
+
+- name: get list of all publisher/subscriber (_p,_s) dbs
+  become: yes
+  become_user: postgres
+  postgresql_query:
+    query: select string_agg(datname, ',') c from pg_database where datname ~ '^.*_[ps]$';
+  register: list_p_s_dbs
+  tags: deploy
+
+- name: set postgresql conf pg_partman_bgw.dbname to list of publisher/subscriber dbs
+  become: yes
+  become_user: postgres
+  community.postgresql.postgresql_set:
+    name: pg_partman_bgw.dbname
+    value: "{{ list_p_s_dbs.query_result[0]['c'] }}"
+  tags: deploy

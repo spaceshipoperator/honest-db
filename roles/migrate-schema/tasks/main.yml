@@ -18,7 +18,7 @@
 - name: copy all schema migration files
   become: yes
   copy: 
-    src: "{{ item.src }}"
+    src: "{{ role_path }}/files/{{ item.src }}"
     dest: "{{ item.dest }}"
     owner: postgres
     group: postgres
@@ -28,10 +28,6 @@
     - { src: 'verify', dest: "{{ migrate_schema_dir }}" }
     - { src: 'sqitch.plan', dest: "{{ migrate_schema_dir }}" }
     - { src: 'sqitch.conf', dest: "{{ migrate_schema_dir }}" }
-  tags:
-    - deploy
-    - revert_schema
-    - upgrade_schema
 
 - name: revert all schema migrations for each subscriber db (_s)
   become: yes
@@ -40,8 +36,7 @@
     chdir: "{{ migrate_schema_dir }}"
     cmd: "sqitch revert -y db:pg:{{ item[-2:] }}_s"
   when: "{{ item != ansible_hostname }}"
-  with_items:
-    - "{{ groups['database'] }}"
+  loop: "{{ groups['database'] }}"
   tags: revert_schema
 
 - name: deploy schema migrations for each subscriber db (_s)
@@ -51,8 +46,7 @@
     chdir: "{{ migrate_schema_dir }}"
     cmd: "sqitch deploy --verify db:pg:{{ item[-2:] }}_s"
   when: "{{ item != ansible_hostname }}"
-  with_items:
-    - "{{ groups['database'] }}"
+  loop: "{{ groups['database'] }}"
   tags: deploy
 
 - name: upgrade schema migrations for each subscriber db (_s)
@@ -62,8 +56,7 @@
     chdir: "{{ migrate_schema_dir }}"
     cmd: "sqitch upgrade db:pg:{{ item[-2:] }}_s"
   when: "{{ item != ansible_hostname }}"
-  with_items:
-    - "{{ groups['database'] }}"
+  loop: "{{ groups['database'] }}"
   tags: upgrade_schema
 
 - name: revert all schema migrations for local publisher db (_p)

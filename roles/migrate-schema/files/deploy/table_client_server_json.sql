@@ -1,5 +1,4 @@
 -- Deploy migrate-schema:table_client_server_json to pg
--- requires: partman_schema
 -- requires: app_schema
 begin;
 
@@ -19,7 +18,7 @@ create table app.client_server_json_template (like app.client_server_json);
 alter table app.client_server_json_template add primary key (client_addr_in
     , server_addr_in, time_in, md5_random_in);
 
-select partman.create_parent('app.client_server_json', 'time_in', 'native', 'daily'
+select ext_pg_partman.create_parent('app.client_server_json', 'time_in', 'native', 'daily'
     , p_template_table := 'app.client_server_json_template');
 
 commit;

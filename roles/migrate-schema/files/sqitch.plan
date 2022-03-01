@@ -3,5 +3,4 @@
 %uri=https://github.com/spaceshipoperator/honest-db
 
 app_schema 2022-02-23T02:00:42Z Brian Muckian <bmuckian@gmail.com> # add schema for all application objects.
-partman_schema 2022-02-23T18:47:26Z Brian Muckian <bmuckian@gmail.com> # add schema for all pg_partman extension objects.
-table_client_server_json [partman_schema app_schema] 2022-02-23T23:20:23Z Brian Muckian <bmuckian@gmail.com> # add table client_server_json, partitioned in app schema
+table_client_server_json [app_schema] 2022-02-23T23:20:23Z Brian Muckian <bmuckian@gmail.com> # add table client_server_json, partitioned in app schema

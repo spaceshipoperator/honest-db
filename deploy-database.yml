@@ -8,157 +8,31 @@
     pip_install_packages:
       - name: psycopg2-binary
     postgresql_conf:
+      - auto_explain.log_min_duration: "'250'"
       - listen_addresses: "'*'"
+      - log_autovacuum_min_duration: "'0'"
+      - log_checkpoints: "'on'"
+      - log_connections: "'on'"
+      - log_disconnections: "'on'"
+      - log_lock_waits: "'on'"
+      - log_min_duration_statement: "'0'"
+      - log_temp_files: "'0'"
       - max_connections: 250
-      - wal_level: "'logical'"
-      - shared_preload_libraries: "'pg_partman_bgw, pg_stat_statements'"
+      - shared_preload_libraries: "'auto_explain, pgaudit, pg_partman_bgw, pg_stat_statements'"
       - ssl: "'on'"
+      - ssl_ca_file: "'/etc/ssl/postgresql/root.crt'"
       - ssl_cert_file: "'/etc/ssl/postgresql/server.crt'"
       - ssl_key_file: "'/etc/ssl/postgresql/server.key'"
-      - ssl_ca_file: "'/etc/ssl/postgresql/root.crt'"
+      - wal_level: "'logical'"
     postgresql_pg_hba_conf:
       - host all all 0.0.0.0/0 md5
       - host all all ::/0 md5
     postgresql_backup_dir: /opt/postgres/backup
-    postgresql_major_version: 13
 
   roles:
     - postgresql-ca
     - darkwizard242.python3
     - geerlingguy.pip
     - galaxyproject.postgresql
+    - database
     - migrate-schema
-
-  tasks:
-  - name: install packages
-    become: yes
-    package:
-      name:
-        - git
-        - postgis
-        - postgresql-contrib-{{ postgresql_major_version }}
-        - postgresql-{{ postgresql_major_version }}-cron
-        - postgresql-{{ postgresql_major_version }}-partman
-        - screen
-        - tmux
-        - vim
-        - wget
-      state: present
-    tags: packages
-
-  - name: ssh keygen command
-    become: yes
-    become_user: postgres
-    shell: >
-      ssh-keygen -q -b 2048 -t rsa -N "" -C "creating SSH" -f ~/.ssh/id_rsa
-      creates="~/.ssh/id_rsa"
-
-  - name: fetch the keyfile from the node to master
-    become: yes
-    become_user: postgres
-    fetch:
-      src: "~/.ssh/id_rsa.pub"
-      dest: "buffer/{{ ansible_hostname }}-id_rsa.pub"
-      flat: yes
-    tags: deploy
-
-  - name: copy the key add to authorized_keys using ansible module
-    authorized_key:
-      user: postgres
-      state: present
-      key: "{{ lookup('file','buffer/{{ item }}-id_rsa.pub')}}"
-    with_items:
-      - "{{ groups['database'] }}"
-    tags: deploy
-
-  - name: collect postgresql version and extensions
-    become: yes
-    become_user: postgres
-    community.postgresql.postgresql_info:
-      filter: ver*,ext*
-
-  - name: set postgres database (superuser) password
-    become: yes
-    become_user: postgres
-    community.postgresql.postgresql_user:
-      name: postgres
-      password: "{{ postgres_password }}"
-    tags: deploy
-
-  - name: verify .pgpass exists, contains credentials
-    become: yes
-    become_user: postgres
-    lineinfile:
-      path: ~/.pgpass
-      mode: "0600"
-      line: "*:*:*:postgres:{{ postgres_password }}"
-      create: yes
-    tags: deploy
-
-  - name: create database suffix _p for publication
-    become: yes
-    become_user: postgres
-    community.postgresql.postgresql_db:
-      name: "{{ local_db_prefix }}_p"
-    tags: deploy
-
-  - name: create publication suffix _pub for all tables in db _p
-    become: yes
-    become_user: postgres
-    community.postgresql.postgresql_publication:
-      db: "{{ local_db_prefix }}_p"
-      name: "{{ local_db_prefix }}_pub"
-    tags: deploy
-
-  - name: create databases suffix _s for each other member in group 
-    become: yes
-    become_user: postgres
-    community.postgresql.postgresql_db:
-      name: "{{ item[-2:] }}_s"
-    when: "{{ item != ansible_hostname }}"
-    with_items:
-      - "{{ groups['database'] }}"
-    tags: deploy
-
-  - name: create subscriptions suffix _sub for each other member db _p 
-    become: yes
-    become_user: postgres
-    community.postgresql.postgresql_subscription:
-      db: "{{ item[-2:] }}_s"
-      name: "{{ item[-2:] }}_sub"
-      state: present
-      publications: "{{ item[-2:] }}_pub"
-      connparams:
-        host: "{{ item }}"
-        dbname: "{{ item[-2:] }}_p"
-    when: "{{ item != ansible_hostname }}"
-    with_items:
-      - "{{ groups['database'] }}"
-    tags: deploy
-
-  - name: refresh all subscriptions (to include any tables added since last deploy)
-    become: yes
-    become_user: postgres
-    postgresql_query:
-      db: "{{ item[-2:] }}_s"
-      query: "alter subscription {{ item[-2:] }}_sub refresh publication;"
-    when: "{{ item != ansible_hostname }}"
-    with_items:
-      - "{{ groups['database'] }}"
-    tags: deploy
-
-  - name: get list of all publisher/subscriber (_p,_s) dbs
-    become: yes
-    become_user: postgres
-    postgresql_query:
-      query: select string_agg(datname, ',') c from pg_database where datname ~ '^.*_[ps]$';
-    register: list_p_s_dbs
-    tags: deploy
-
-  - name: set postgresql conf pg_partman_bgw.dbname to list of publisher/subscriber dbs
-    become: yes
-    become_user: postgres
-    community.postgresql.postgresql_set:
-      name: pg_partman_bgw.dbname
-      value: "{{ list_p_s_dbs.query_result[0]['c'] }}"
-    tags: deploy
