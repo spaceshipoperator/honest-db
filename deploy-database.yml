@@ -28,11 +28,18 @@
       - host all all 0.0.0.0/0 md5
       - host all all ::/0 md5
     postgresql_backup_dir: /opt/postgres/backup
+    prometheus_targets:
+      node:
+      - targets:
+        - "localhost:9100"
+        labels:
+          env: "local"
 
   roles:
     - postgresql-ca
     - darkwizard242.python3
     - geerlingguy.pip
+    - cloudalchemy.prometheus
     - galaxyproject.postgresql
     - database
     - migrate-schema
