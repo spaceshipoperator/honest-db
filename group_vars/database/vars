@@ -1,5 +1,5 @@
 ---
-pg_major_version: 13
+postgresql_version: 14
 
 db_extensions:
   - adminpack
@@ -13,13 +13,14 @@ extra_packages:
   - htop
   - git
   - postgis
-  - postgresql-contrib-{{ pg_major_version }}
-  - postgresql-{{ pg_major_version }}-cron
-  - postgresql-{{ pg_major_version }}-partman
-  - postgresql-{{ pg_major_version }}-pgaudit
-  - postgresql-{{ pg_major_version }}-pgrouting
-  - postgresql-{{ pg_major_version }}-postgis-3
+  - postgresql-contrib-{{ postgresql_version }}
+  - postgresql-{{ postgresql_version }}-cron
+  - postgresql-{{ postgresql_version }}-partman
+  - postgresql-{{ postgresql_version }}-pgaudit
+  - postgresql-{{ postgresql_version }}-pgrouting
+  - postgresql-{{ postgresql_version }}-postgis-3
   - screen
+  - rsync
   - tmux
   - vim
   - wget

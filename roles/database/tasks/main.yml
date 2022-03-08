@@ -144,7 +144,7 @@
     query: "alter subscription {{ item[-2:] }}_sub refresh publication;"
   when: "{{ item != ansible_hostname }}"
   loop: "{{ groups['database'] }}"
-  tags: deploy
+  tags: upgrade_schema
 
 - name: get list of all publisher/subscriber (_p,_s) dbs
   become: yes
