@@ -1,11 +1,65 @@
 ---
 postgresql_version: 14
 
+postgresql_ca_subj_base: "/C=US/O=Example"
+postgresql_ca_hostname_fqdn: "{{ inventory_hostname }}"
+local_db_prefix: "{{ inventory_hostname[-2:] }}"
+
+pip_install_packages:
+  - name: psycopg2-binary
+
+postgresql_conf:
+  - auto_explain.log_min_duration: "'250'"
+  - archive_mode: "'off'"
+  - listen_addresses: "'*'"
+  - log_autovacuum_min_duration: "'0'"
+  - log_checkpoints: "'on'"
+  - log_connections: "'on'"
+  - log_destination: "'syslog'"
+  - logging_collector: "on"
+  - log_disconnections: "'on'"
+  - log_file_mode: "'0600'"
+  - log_filename: "'postgresql-%Y-%m-%d_%H.log'"
+  - log_lock_waits: "'on'"
+  - log_min_duration_statement: "'1'"
+  - log_rotation_age: "'1d'"
+  - log_temp_files: "'0'"
+  - log_truncate_on_rotation: "'on'"
+  - max_connections: 250
+  - max_prepared_transactions: 150
+  - shared_preload_libraries: "{{ shared_preload_libraries }}"
+  - ssl: "'on'"
+  - ssl_ca_file: "'/etc/ssl/postgresql/root.crt'"
+  - ssl_cert_file: "'/etc/ssl/postgresql/server.crt'"
+  - ssl_key_file: "'/etc/ssl/postgresql/server.key'"
+  - wal_level: "'logical'"
+
+postgresql_pg_hba_conf:
+  - host all all 0.0.0.0/0 md5
+  - host all all ::/0 md5
+
+postgresql_backup_dir: /opt/postgres/backup
+
+prometheus_targets:
+  node:
+  - targets:
+    - "localhost:9100"
+    - "bernie:9100"
+    - "berry:9100"
+    labels:
+      env: "local"
+
+prometheus_remote_read:
+  - url: "http://localhost:9201/read"
+    read_recent: true
+
+prometheus_remote_write:
+  - url: "http://localhost:9201/write"
+
 db_extensions:
   - adminpack
   - pg_partman
   - pg_stat_statements
-  - pgaudit
   - pgrouting
   - postgis
 
@@ -28,3 +82,12 @@ extra_packages:
 migrate_schema_dir: "/opt/honest-db/migrate-schema"
 
 postgres_password: "{{ vault_postgres_password }}"
+
+## timescaledb role
+timescaledb_version: "2-2.6.0"
+timescaledb_pg_major: "{{ postgresql_version }}"
+timescaledb_pg_extension_version: "2.6.0"
+timescaledb_pg_database: "{{ local_db_prefix }}_p"
+shared_preload_libraries: "'auto_explain, pg_stat_statements, timescaledb'"
+timescaledb_pg_database_owner: "postgres"
+timescaledb_pg_database_owner_password: "{{ vault_postgres_password }}"

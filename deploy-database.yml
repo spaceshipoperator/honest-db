@@ -1,49 +1,13 @@
 - hosts: database
   become: yes
   remote_user: admin
-  vars:
-    postgresql_ca_subj_base: "/C=US/O=Example"
-    postgresql_ca_hostname_fqdn: "{{ inventory_hostname }}"
-    local_db_prefix: "{{ inventory_hostname[-2:] }}"
-    pip_install_packages:
-      - name: psycopg2-binary
-    postgresql_conf:
-      - auto_explain.log_min_duration: "'250'"
-      - listen_addresses: "'*'"
-      - log_autovacuum_min_duration: "'0'"
-      - log_checkpoints: "'on'"
-      - log_connections: "'on'"
-      - log_disconnections: "'on'"
-      - log_lock_waits: "'on'"
-      - log_min_duration_statement: "'0'"
-      - log_temp_files: "'0'"
-      - max_connections: 250
-      - shared_preload_libraries: "'auto_explain, pgaudit, pg_partman_bgw, pg_stat_statements'"
-      - ssl: "'on'"
-      - ssl_ca_file: "'/etc/ssl/postgresql/root.crt'"
-      - ssl_cert_file: "'/etc/ssl/postgresql/server.crt'"
-      - ssl_key_file: "'/etc/ssl/postgresql/server.key'"
-      - wal_level: "'logical'"
-    postgresql_pg_hba_conf:
-      - host all all 0.0.0.0/0 md5
-      - host all all ::/0 md5
-    postgresql_backup_dir: /opt/postgres/backup
-    prometheus_targets:
-      node:
-      - targets:
-        - "localhost:9100"
-        labels:
-          env: "local"
-    prometheus_remote_read:
-      - url: "http://localhost:9201/read"
-      read_recent: true
-    prometheus_remote_write:
-      - url: "http://localhost:9201/write"
   roles:
-    - postgresql-ca
     - darkwizard242.python3
     - geerlingguy.pip
     - cloudalchemy.prometheus
     - galaxyproject.postgresql
+    - postgresql-ca
     - database
+    - idealista.timescaledb_role
+    - idealista.promscale_role
     - migrate-schema

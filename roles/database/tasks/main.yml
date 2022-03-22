@@ -20,7 +20,6 @@
     src: "~/.ssh/id_rsa.pub"
     dest: "buffer/{{ ansible_hostname }}-id_rsa.pub"
     flat: yes
-  tags: deploy
 
 - name: copy the key add to authorized_keys using ansible module
   authorized_key:
@@ -29,7 +28,6 @@
     key: "{{ lookup('file','buffer/{{ item }}-id_rsa.pub')}}"
   with_items:
     - "{{ groups['database'] }}"
-  tags: deploy
 
 - name: collect postgresql version and extensions
   become: yes
@@ -43,7 +41,6 @@
   community.postgresql.postgresql_user:
     name: postgres
     password: "{{ postgres_password }}"
-  tags: deploy
 
 - name: verify .pgpass exists, contains credentials
   become: yes
@@ -53,14 +50,12 @@
     mode: "0600"
     line: "*:*:*:postgres:{{ postgres_password }}"
     create: yes
-  tags: deploy
 
 - name: create database suffix _p for publication
   become: yes
   become_user: postgres
   community.postgresql.postgresql_db:
     name: "{{ local_db_prefix }}_p"
-  tags: deploy
 
 - name: create publication suffix _pub for all tables in db _p
   become: yes
@@ -111,7 +106,6 @@
     db: "{{ local_db_prefix }}_p"
     name: "ext_{{ item }}"
   loop: "{{ db_extensions }}"
-  tags: deploy
  
 - name: create extensions in all subscriber (_s) databases
   become: yes
@@ -134,7 +128,6 @@
     schema: "ext_{{ item }}"
     cascade: yes
   loop: "{{ db_extensions }}"
-  tags: deploy
 
 - name: refresh all subscriptions (to include any tables added since last deploy)
   become: yes
